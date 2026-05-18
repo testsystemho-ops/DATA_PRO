@@ -96,8 +96,8 @@ html,body{min-height:100vh;font-family:'Kanit',sans-serif;background:var(--bg);c
 }
 .login-hint b{color:var(--text);}
 
-/* QR Login */
-.login-tabs{display:flex;gap:0;margin-bottom:24px;border-radius:12px;overflow:hidden;border:1.5px solid var(--border);}
+/* QR Login Tabs */
+.login-tabs{display:flex;gap:0;margin-bottom:22px;border-radius:12px;overflow:hidden;border:1.5px solid var(--border);}
 .login-tab{
   flex:1;padding:10px;text-align:center;cursor:pointer;
   font-family:'Kanit',sans-serif;font-size:.88rem;font-weight:600;
@@ -107,32 +107,82 @@ html,body{min-height:100vh;font-family:'Kanit',sans-serif;background:var(--bg);c
 .tab-panel{display:none;}
 .tab-panel.active{display:block;}
 
+/* QR 2-screen layout */
+.qr-screen-label{margin-bottom:14px;}
+.qr-step-badge{
+  display:inline-block;padding:3px 12px;border-radius:20px;font-size:.72rem;font-weight:700;
+  background:var(--primary-lt);color:var(--primary);border:1px solid #C5CEFF;margin-bottom:6px;
+}
+.qr-step-badge.step2{background:var(--secondary-lt);color:var(--secondary);border-color:#FFBFCB;}
+.qr-screen-title{font-size:1rem;font-weight:700;color:var(--text);}
+.qr-screen-title span{color:var(--primary);}
+
+/* Scanned result box */
+.qr-result-box{
+  display:flex;align-items:center;gap:12px;
+  background:var(--accent-lt);border:1.5px solid #A7F3D0;border-radius:12px;
+  padding:12px 16px;margin-bottom:12px;
+}
+.qr-result-icon{font-size:1.4rem;}
+.qr-result-label{font-size:.74rem;color:var(--text2);font-weight:600;}
+.qr-result-val{font-size:1rem;font-weight:700;color:#065F46;}
+
+/* Username badge (step 2) */
+.qr-user-badge{
+  display:none;background:var(--accent-lt);border:1px solid #A7F3D0;border-radius:10px;
+  padding:9px 14px;margin-bottom:12px;font-size:.85rem;font-weight:700;color:#065F46;
+  text-align:center;
+}
+.qr-user-badge.show{display:flex;align-items:center;justify-content:center;gap:8px;}
+
+/* Buttons */
+.btn-qr-next{
+  width:100%;padding:12px;border:none;border-radius:11px;cursor:pointer;
+  font-family:'Kanit',sans-serif;font-size:.96rem;font-weight:700;
+  background:linear-gradient(135deg,var(--primary),#7C8CF8);color:#fff;
+  box-shadow:0 3px 14px rgba(79,110,247,.3);transition:all .2s;margin-top:4px;
+}
+.btn-qr-next:hover{transform:translateY(-2px);box-shadow:0 5px 20px rgba(79,110,247,.4);}
+.btn-qr-rescan,.btn-qr-back{
+  width:100%;padding:9px;border:1.5px solid var(--border);border-radius:10px;
+  background:var(--bg);color:var(--text2);
+  font-family:'Kanit',sans-serif;font-size:.85rem;font-weight:600;cursor:pointer;
+  margin-top:7px;transition:all .2s;
+}
+.btn-qr-rescan:hover,.btn-qr-back:hover{background:var(--bg2);color:var(--text);}
+
 /* QR scanner area */
 .qr-wrap{
   border-radius:14px;overflow:hidden;background:#000;
-  position:relative;margin-bottom:14px;
-  min-height:260px;display:flex;align-items:center;justify-content:center;
+  position:relative;margin-bottom:12px;
+  min-height:250px;display:flex;align-items:center;justify-content:center;
 }
 #qr-reader{width:100%;}
-#qr-reader video{border-radius:14px;}
+#qr-reader video{border-radius:0;}
 .qr-overlay{
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   pointer-events:none;
 }
 .qr-frame{
-  width:180px;height:180px;border-radius:16px;
-  border:3px solid rgba(79,110,247,.8);
-  box-shadow:0 0 0 9999px rgba(0,0,0,.45);
-  position:relative;
+  width:170px;height:170px;
+  border:3px solid rgba(79,110,247,.0);
+  box-shadow:0 0 0 9999px rgba(0,0,0,.48);
+  position:relative;border-radius:4px;
 }
 .qr-frame::before,.qr-frame::after,
 .qr-corner-bl,.qr-corner-br{
-  content:'';position:absolute;width:22px;height:22px;border-color:var(--primary);border-style:solid;
+  content:'';position:absolute;width:24px;height:24px;border-color:#fff;border-style:solid;
 }
 .qr-frame::before{top:-3px;left:-3px;border-width:4px 0 0 4px;border-radius:4px 0 0 0;}
 .qr-frame::after{top:-3px;right:-3px;border-width:4px 4px 0 0;border-radius:0 4px 0 0;}
 .qr-corner-bl{bottom:-3px;left:-3px;border-width:0 0 4px 4px;border-radius:0 0 0 4px;}
 .qr-corner-br{bottom:-3px;right:-3px;border-width:0 4px 4px 0;border-radius:0 0 4px 0;}
+.qr-scan-line{
+  position:absolute;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--primary),transparent);
+  animation:scanMove 2s linear infinite;top:0;
+}
+@keyframes scanMove{0%{top:0%;}50%{top:calc(100% - 2px);}100%{top:0%;}}
 
 .qr-status{
   padding:10px 14px;border-radius:10px;font-size:.84rem;font-weight:600;text-align:center;
@@ -141,8 +191,9 @@ html,body{min-height:100vh;font-family:'Kanit',sans-serif;background:var(--bg);c
 .qr-status.scanning{background:var(--primary-lt);color:var(--primary);border:1px solid #C5CEFF;display:block;}
 .qr-status.success {background:#E8FBF4;color:#065F46;border:1px solid #A7F3D0;display:block;}
 .qr-status.error   {background:#FFF1F1;color:#C62828;border:1px solid #FFCDD2;display:block;}
+.qr-status.warn    {background:#FFF4E5;color:#92400E;border:1px solid #FDE68A;display:block;}
 
-.qr-hint{font-size:.78rem;color:var(--text3);text-align:center;margin-top:8px;line-height:1.6;}
+.qr-hint{font-size:.78rem;color:var(--text3);text-align:center;margin-top:8px;line-height:1.7;}
 .btn-qr-stop{
   width:100%;padding:10px;border:1.5px solid var(--border);border-radius:10px;
   background:var(--bg);color:var(--text2);
@@ -151,13 +202,14 @@ html,body{min-height:100vh;font-family:'Kanit',sans-serif;background:var(--bg);c
 }
 .btn-qr-stop:hover{background:var(--bg2);}
 .btn-qr-stop.show{display:block;}
-
-/* QR generate section (for printing) */
-.qr-gen-wrap{
-  background:var(--bg);border:1px solid var(--border);border-radius:12px;
-  padding:16px;margin-top:16px;display:none;
+.btn-qr-reset{
+  width:100%;padding:9px;border:1.5px solid var(--border);border-radius:10px;
+  background:var(--bg);color:var(--text2);
+  font-family:'Kanit',sans-serif;font-size:.84rem;font-weight:600;cursor:pointer;
+  margin-top:6px;transition:all .2s;display:none;
 }
-.qr-gen-wrap.show{display:block;}
+.btn-qr-reset:hover{background:var(--bg2);}
+.btn-qr-reset.show{display:block;}
 
 
 /* ══ TOPBAR ══ */
@@ -395,18 +447,68 @@ tbody tr:hover{background:#F8F9FF;}
 
     <!-- Tab: QR Scan -->
     <div class="tab-panel" id="tab-qr">
-      <div class="qr-status" id="qr-status"></div>
-      <div class="qr-wrap">
-        <div id="qr-reader"></div>
-        <div class="qr-overlay">
-          <div class="qr-frame">
-            <div class="qr-corner-bl"></div>
-            <div class="qr-corner-br"></div>
+
+      <!-- ── SCREEN 1: Scan Username ── -->
+      <div id="qr-screen-1">
+        <div class="qr-screen-label">
+          <div class="qr-step-badge">ขั้นตอนที่ 1 / 2</div>
+          <div class="qr-screen-title">สแกน QR <span>ชื่อผู้ใช้</span></div>
+        </div>
+
+        <div class="qr-status" id="qr-status-1">กำลังเปิดกล้อง...</div>
+
+        <div class="qr-wrap" id="qr-wrap-1">
+          <div id="qr-reader"></div>
+          <div class="qr-overlay">
+            <div class="qr-frame">
+              <div class="qr-corner-bl"></div>
+              <div class="qr-corner-br"></div>
+              <div class="qr-scan-line" id="qr-scanline-1"></div>
+            </div>
           </div>
         </div>
+
+        <div class="qr-result-box" id="qr-result-user" style="display:none;">
+          <span class="qr-result-icon">👤</span>
+          <div>
+            <div class="qr-result-label">ชื่อผู้ใช้ที่สแกนได้</div>
+            <div class="qr-result-val" id="qr-result-user-txt"></div>
+          </div>
+        </div>
+
+        <button class="btn-qr-next" id="btn-qr-next" onclick="goToStep2()" style="display:none;">
+          ถัดไป →
+        </button>
+        <button class="btn-qr-rescan" onclick="rescanUser()">🔄 สแกนใหม่</button>
+        <p class="qr-hint">📋 นำ QR <b>ชื่อผู้ใช้</b> ของสาขาคุณมาส่องกล้อง</p>
       </div>
-      <button class="btn-qr-stop" id="btn-qr-stop" onclick="stopQR()">⏹ หยุดกล้อง</button>
-      <p class="qr-hint">📱 นำ QR Code ของสาขาคุณมาส่องที่กล้อง<br/>ระบบจะ Login อัตโนมัติ</p>
+
+      <!-- ── SCREEN 2: Scan Password ── -->
+      <div id="qr-screen-2" style="display:none;">
+        <div class="qr-screen-label">
+          <div class="qr-step-badge step2">ขั้นตอนที่ 2 / 2</div>
+          <div class="qr-screen-title">สแกน QR <span>รหัสผ่าน</span></div>
+        </div>
+
+        <div class="qr-user-badge show" id="qr-badge-s2"></div>
+
+        <div class="qr-status" id="qr-status-2">กำลังเปิดกล้อง...</div>
+
+        <div class="qr-wrap" id="qr-wrap-2">
+          <div id="qr-reader-2" style="width:100%;"></div>
+          <div class="qr-overlay">
+            <div class="qr-frame">
+              <div class="qr-corner-bl"></div>
+              <div class="qr-corner-br"></div>
+              <div class="qr-scan-line" id="qr-scanline-2"></div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-qr-back" onclick="backToStep1()">← ย้อนกลับ</button>
+        <p class="qr-hint">🔑 นำ QR <b>รหัสผ่าน</b> ของสาขาคุณมาส่องกล้อง</p>
+      </div>
+
     </div>
 
   </div>
@@ -975,81 +1077,201 @@ function showToast(msg, type='success'){
 
 
 /* ══════════════════════════════════════════════════════
-   QR CODE LOGIN
-   QR data format:  user:Store001|pass:store001
+   QR CODE LOGIN — 2-Screen
+   Screen 1: Scan Username QR  → shows result + "ถัดไป" button
+   Screen 2: Scan Password QR  → auto login on success
+   QR content:  Screen1 = plain username e.g. "Store011"
+                Screen2 = plain password  e.g. "store011"
    ══════════════════════════════════════════════════════ */
-let html5QrCode = null;
-let qrScanning  = false;
+let html5QrCode1 = null;
+let html5QrCode2 = null;
+let qrUsername   = '';
+let scanLock1    = false;
+let scanLock2    = false;
 
+/* ── Tab switch ── */
 function switchTab(tab){
   document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   event.currentTarget.classList.add('active');
   document.getElementById('tab-'+tab).classList.add('active');
   if(tab === 'qr'){
-    startQR();
+    showScreen(1);
+    startQR1();
   } else {
-    stopQR();
-    setQRStatus('','');
+    stopAllQR();
   }
 }
 
-function setQRStatus(msg, type){
-  const el = document.getElementById('qr-status');
-  el.textContent = msg;
-  el.className   = 'qr-status' + (type ? ' '+type : '');
+/* ── Screen switch ── */
+function showScreen(n){
+  document.getElementById('qr-screen-1').style.display = n===1 ? '' : 'none';
+  document.getElementById('qr-screen-2').style.display = n===2 ? '' : 'none';
 }
 
-function startQR(){
-  if(qrScanning) return;
-  setQRStatus('กำลังเปิดกล้อง...','scanning');
-  document.getElementById('btn-qr-stop').classList.add('show');
-  html5QrCode = new Html5Qrcode('qr-reader');
-  html5QrCode.start(
+/* ── Status helpers ── */
+function setStatus1(msg, type){
+  const el = document.getElementById('qr-status-1');
+  el.textContent = msg;
+  el.className = 'qr-status' + (type ? ' '+type : '');
+}
+function setStatus2(msg, type){
+  const el = document.getElementById('qr-status-2');
+  el.textContent = msg;
+  el.className = 'qr-status' + (type ? ' '+type : '');
+}
+
+/* ══ SCREEN 1 — Scan Username ════════════════════════ */
+function startQR1(){
+  if(html5QrCode1) return;
+  setStatus1('📷 กำลังเปิดกล้อง...','scanning');
+  scanLock1 = false;
+  const el1  = document.getElementById('qr-reader');
+  const wrap1 = el1.closest('.qr-wrap');
+  el1.innerHTML = '';
+  const w1 = (wrap1 ? wrap1.offsetWidth : 0) || 360;
+  const box1 = Math.floor(w1 * 0.65);
+  html5QrCode1 = new Html5Qrcode('qr-reader', { verbose: false });
+  html5QrCode1.start(
     { facingMode:'environment' },
-    { fps:10, qrbox:{width:200, height:200}, aspectRatio:1.0 },
-    (decodedText) => { handleQRResult(decodedText); },
+    { fps:12, qrbox:{width:box1, height:box1} },
+    (txt) => handleUser(txt),
     () => {}
   ).then(()=>{
-    qrScanning = true;
-    setQRStatus('✅ กล้องพร้อม — นำ QR Code สาขามาส่อง','scanning');
+    setStatus1('🔍 พร้อม — สแกน QR ชื่อผู้ใช้','scanning');
   }).catch(err=>{
-    qrScanning = false;
-    setQRStatus('❌ ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการเข้าถึงกล้อง','error');
-    document.getElementById('btn-qr-stop').classList.remove('show');
+    setStatus1('❌ ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการเข้าถึงกล้อง','error');
+    html5QrCode1 = null;
   });
 }
 
-function stopQR(){
-  if(html5QrCode && qrScanning){
-    html5QrCode.stop().catch(()=>{});
-    qrScanning = false;
+function stopQR1(){
+  if(html5QrCode1){
+    const q = html5QrCode1;
+    html5QrCode1 = null;
+    q.stop().catch(()=>{});
   }
-  document.getElementById('btn-qr-stop').classList.remove('show');
 }
 
-function handleQRResult(text){
-  try {
-    // Format: user:Store001|pass:store001
-    const parts = {};
-    text.split('|').forEach(p=>{
-      const idx = p.indexOf(':');
-      if(idx > 0){ parts[p.slice(0,idx).trim()] = p.slice(idx+1).trim(); }
-    });
-    const u = parts['user'] || parts['username'] || parts['u'] || '';
-    const p = parts['pass'] || parts['password'] || parts['p'] || '';
-    if(!u || !p){ setQRStatus('❌ QR Code ไม่ถูกต้อง','error'); return; }
-    const acc = ACCOUNTS[u];
-    if(!acc || acc.pass !== p){ setQRStatus('❌ QR Code ไม่ตรงกับระบบ','error'); return; }
-    stopQR();
-    setQRStatus('✅ สแกนสำเร็จ! กำลังเข้าสู่ระบบ '+u+'...','success');
-    document.getElementById('lu').value = u;
-    document.getElementById('lp').value = p;
-    setTimeout(()=>{ doLogin(); }, 700);
-  } catch(e){
-    setQRStatus('❌ QR Code ไม่ถูกต้อง','error');
+function handleUser(text){
+  if(scanLock1) return;
+  const val = text.trim();
+  if(!ACCOUNTS[val]){
+    scanLock1 = true;
+    setStatus1('❌ ไม่พบชื่อผู้ใช้ "'+val+'" ในระบบ','error');
+    setTimeout(()=>{ scanLock1=false; setStatus1('🔍 สแกนใหม่อีกครั้ง','scanning'); }, 2000);
+    return;
+  }
+  // Found — lock and show result
+  scanLock1   = true;
+  qrUsername  = val;
+  stopQR1();
+
+  setStatus1('✅ พบชื่อผู้ใช้เรียบร้อย','success');
+  document.getElementById('qr-result-user-txt').textContent = val;
+  document.getElementById('qr-result-user').style.display   = 'flex';
+  document.getElementById('btn-qr-next').style.display      = 'block';
+  document.getElementById('qr-scanline-1').style.display    = 'none';
+}
+
+function rescanUser(){
+  stopQR1();
+  html5QrCode1 = null;
+  scanLock1    = false;
+  qrUsername   = '';
+  document.getElementById('qr-result-user').style.display = 'none';
+  document.getElementById('btn-qr-next').style.display    = 'none';
+  document.getElementById('qr-scanline-1').style.display  = '';
+  setStatus1('กำลังเปิดกล้อง...','scanning');
+  setTimeout(()=>{ startQR1(); }, 300);
+}
+
+/* ── Next button → go to Screen 2 ── */
+function goToStep2(){
+  stopQR1();
+  html5QrCode1 = null;
+  showScreen(2);
+  document.getElementById('qr-badge-s2').textContent = '👤 ' + qrUsername;
+  setStatus2('กำลังเปิดกล้อง...','scanning');
+  scanLock2 = false;
+  // Wait for screen 2 layout to settle, then let startQR2 retry until wrap has real size
+  setTimeout(()=>{ startQR2(); }, 100);
+}
+
+/* ══ SCREEN 2 — Scan Password ════════════════════════ */
+function startQR2(){
+  if(html5QrCode2) return;
+  // Ensure screen 2 wrap is fully rendered and has real dimensions
+  const wrap = document.getElementById('qr-wrap-2');
+  const el   = document.getElementById('qr-reader-2');
+  if(!wrap || !el || wrap.offsetWidth === 0){
+    setTimeout(()=>{ startQR2(); }, 150);
+    return;
+  }
+  // Force element dimensions to match wrap
+  const w = wrap.offsetWidth;
+  el.innerHTML = '';
+  el.style.width  = w + 'px';
+  el.style.height = w + 'px';   // square viewport for qrbox
+
+  html5QrCode2 = new Html5Qrcode('qr-reader-2', { verbose: false });
+  const boxSize = Math.floor(w * 0.65);
+  html5QrCode2.start(
+    { facingMode:'environment' },
+    { fps:12, qrbox:{width:boxSize, height:boxSize} },
+    (txt) => handlePass(txt),
+    () => {}
+  ).then(()=>{
+    el.style.height = '';   // restore natural height after camera active
+    setStatus2('🔍 พร้อม — สแกน QR รหัสผ่าน','scanning');
+  }).catch(err=>{
+    setStatus2('❌ ไม่สามารถเปิดกล้องได้: กรุณาอนุญาตการเข้าถึงกล้อง','error');
+    html5QrCode2 = null;
+  });
+}
+
+function stopQR2(){
+  if(html5QrCode2){
+    const q = html5QrCode2;
+    html5QrCode2 = null;
+    q.stop().catch(()=>{});
   }
 }
+
+function handlePass(text){
+  if(scanLock2) return;
+  const val = text.trim();
+  const acc = ACCOUNTS[qrUsername];
+  if(!acc || acc.pass !== val){
+    scanLock2 = true;
+    setStatus2('❌ รหัสผ่านไม่ถูกต้อง กรุณาสแกน QR รหัสผ่านของสาขา '+qrUsername,'error');
+    setTimeout(()=>{ scanLock2=false; setStatus2('🔍 สแกน QR รหัสผ่านอีกครั้ง','scanning'); }, 2200);
+    return;
+  }
+  // Success
+  scanLock2 = true;
+  stopQR2();
+  setStatus2('✅ สแกนสำเร็จ! กำลังเข้าสู่ระบบ...','success');
+  document.getElementById('lu').value = qrUsername;
+  document.getElementById('lp').value = val;
+  setTimeout(()=>{ doLogin(); }, 800);
+}
+
+/* ── Back to screen 1 ── */
+function backToStep1(){
+  stopQR2();
+  html5QrCode2 = null;
+  scanLock2    = false;
+  showScreen(1);
+  // Reset screen 1 for re-scan
+  rescanUser();
+}
+
+function stopAllQR(){
+  stopQR1(); stopQR2();
+}
+
+
 /* ══════════════════════════════════════════════════════
    INIT — hide loading, show login after Firebase ready
    ══════════════════════════════════════════════════════ */
