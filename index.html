@@ -356,7 +356,7 @@ tbody tr:hover{background:#F8F9FF;}
     </div>
 
     <!-- Form -->
-    <div class="card">
+    <div class="card" id="form-card">
       <div class="ch"><div class="bar"></div><h2>กรอกข้อมูลชื่อ-นามสกุล</h2></div>
       <div class="fg3">
         <div class="fld">
@@ -623,9 +623,10 @@ function doLogin(){
   }
 
   const isAdmin = acc.role==='admin';
-  document.getElementById('act-col').style.display  = isAdmin ? '' : 'none';
-  document.getElementById('exp-card').style.display  = isAdmin ? '' : 'none';
-  document.getElementById('stl0').textContent        = isAdmin ? 'รายการทั้งหมด' : 'รายการสาขา';
+  document.getElementById('act-col').style.display   = isAdmin ? '' : 'none';
+  document.getElementById('exp-card').style.display   = isAdmin ? '' : 'none';
+  document.getElementById('form-card').style.display  = isAdmin ? 'none' : '';
+  document.getElementById('stl0').textContent         = isAdmin ? 'รายการทั้งหมด' : 'รายการสาขา';
 
   buildStoreDropdowns(isAdmin, acc.store);
   document.getElementById('fdate').value = todayStr();
