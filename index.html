@@ -471,7 +471,7 @@ const recRef  = db.ref('name_records');   // path in Realtime DB
    ACCOUNTS (200 stores + admin)
    ══════════════════════════════════════════════════════ */
 const STORES   = Array.from({length:200}, (_,i) => `Store${String(i+1).padStart(3,'0')}`);
-const ACCOUNTS = { admin:{ pass:'admin123', role:'admin', display:'ผู้ดูแลระบบ', store:null } };
+const ACCOUNTS = { Inventory:{ pass:'inventory123', role:'admin', display:'ผู้ดูแลระบบ', store:null } };
 STORES.forEach(s => { ACCOUNTS[s] = { pass:s.toLowerCase(), role:'user', display:`ผู้ใช้ ${s}`, store:s }; });
 
 /* ══ APP STATE ══ */
