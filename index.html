@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ระบบบันทึกชื่อ-นามสกุล</title>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<!-- SheetJS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Firebase SDK v9 (compat) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+:root{
+  --primary:#4F6EF7;--primary-lt:#EEF1FF;
+  --secondary:#F7567C;--secondary-lt:#FFF0F3;
+  --accent:#00C49A;--accent-lt:#E6FAF6;
+  --excel:#1D6F42;--excel-lt:#E8F5EE;
+  --bg:#F4F6FB;--bg2:#ECEEF5;
+  --card:#FFFFFF;--border:#DDE2EF;
+  --text:#1A1D2E;--text2:#6B7280;--text3:#9CA3AF;
+  --radius:14px;--shadow:0 2px 16px rgba(79,110,247,.10);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{min-height:100vh;font-family:'Kanit',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;}
+
+/* ══ LOADING OVERLAY ══ */
+#loading{
+  position:fixed;inset:0;background:rgba(244,246,251,.95);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:9999;gap:16px;
+}
+#loading.hide{display:none;}
+.spinner{
+  width:44px;height:44px;border-radius:50%;
+  border:4px solid var(--border);border-top-color:var(--primary);
+  animation:spin .8s linear infinite;
+}
+.loading-txt{font-size:.9rem;color:var(--text2);font-weight:500;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ══ STATUS DOT ══ */
+.online-dot{
+  width:8px;height:8px;border-radius:50%;background:#6B7280;
+  display:inline-block;margin-right:4px;transition:background .3s;
+}
+.online-dot.on{background:#00C49A;box-shadow:0 0 6px rgba(0,196,154,.5);}
+.online-dot.off{background:#F7567C;}
+
+/* ══ LOGIN ══ */
+#login-page{
+  display:none;align-items:center;justify-content:center;
+  min-height:100vh;padding:20px;
+  background:linear-gradient(145deg,#EEF1FF 0%,#F4F6FB 50%,#FFF0F3 100%);
+}
+#login-page.show{display:flex;}
+.login-box{
+  background:var(--card);border:1px solid var(--border);border-radius:24px;
+  padding:42px 38px;width:100%;max-width:420px;
+  box-shadow:0 8px 40px rgba(79,110,247,.13);animation:fadeUp .45s ease both;
+}
+.login-logo{text-align:center;margin-bottom:28px;}
+.login-logo .icon{
+  width:72px;height:72px;border-radius:20px;
+  background:linear-gradient(135deg,var(--primary),var(--secondary));
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:2rem;margin-bottom:12px;box-shadow:0 6px 20px rgba(79,110,247,.3);
+}
+.login-logo h1{font-size:1.4rem;font-weight:700;}
+.login-logo p{font-size:.83rem;color:var(--text2);margin-top:4px;}
+.fg{margin-bottom:16px;}
+.fg label{display:block;font-size:.8rem;color:var(--text2);margin-bottom:5px;font-weight:600;}
+.fg input{
+  width:100%;padding:11px 14px;border-radius:11px;
+  border:1.5px solid var(--border);background:#FAFBFF;color:var(--text);
+  font-family:'Kanit',sans-serif;font-size:.93rem;transition:border .2s,box-shadow .2s;
+}
+.fg input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,110,247,.12);}
+.btn-login{
+  width:100%;padding:13px;border:none;border-radius:11px;cursor:pointer;
+  font-family:'Kanit',sans-serif;font-size:1rem;font-weight:700;
+  background:linear-gradient(135deg,var(--primary),#7C8CF8);color:#fff;
+  box-shadow:0 4px 18px rgba(79,110,247,.35);transition:transform .15s,box-shadow .15s;margin-top:4px;
+}
+.btn-login:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(79,110,247,.45);}
+.btn-login:active{transform:translateY(0);}
+.login-err{
+  background:#FFF1F1;border:1px solid #FFCDD2;border-radius:9px;
+  color:#C62828;padding:9px 14px;font-size:.84rem;text-align:center;margin-top:11px;display:none;
+}
+.login-hint{
+  margin-top:18px;padding:12px 14px;background:var(--bg);border-radius:10px;
+  font-size:.78rem;color:var(--text2);border:1px solid var(--border);line-height:1.8;
+}
+.login-hint b{color:var(--text);}
+
+/* ══ TOPBAR ══ */
+#app-page{display:none;min-height:100vh;}
+#app-page.show{display:block;}
+.topbar{
+  position:sticky;top:0;z-index:100;
+  background:rgba(255,255,255,.93);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border);
+  padding:0 24px;height:62px;
+  display:flex;align-items:center;justify-content:space-between;
+  box-shadow:0 1px 8px rgba(79,110,247,.07);
+}
+.topbar-left{display:flex;align-items:center;gap:12px;}
+.tb-logo{
+  width:38px;height:38px;border-radius:11px;
+  background:linear-gradient(135deg,var(--primary),var(--secondary));
+  display:flex;align-items:center;justify-content:center;font-size:1.1rem;
+  box-shadow:0 2px 10px rgba(79,110,247,.25);flex-shrink:0;
+}
+.tb-title{font-size:.98rem;font-weight:700;}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.tb-info{font-size:.78rem;color:var(--text2);font-weight:500;}
+.badge{padding:3px 11px;border-radius:20px;font-size:.72rem;font-weight:700;white-space:nowrap;}
+.badge-admin{background:var(--secondary-lt);color:var(--secondary);border:1px solid #FFBFCB;}
+.badge-user{background:var(--primary-lt);color:var(--primary);border:1px solid #C5CEFF;}
+.badge-store{background:#FFF8E7;color:#B45309;border:1px solid #FDE68A;}
+.btn-logout{
+  padding:6px 14px;border-radius:9px;border:1.5px solid var(--border);
+  background:var(--card);color:var(--text2);
+  font-family:'Kanit',sans-serif;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s;
+}
+.btn-logout:hover{background:var(--bg);color:var(--text);border-color:var(--primary);}
+
+/* ══ CONTENT ══ */
+.content{max-width:980px;margin:0 auto;padding:26px 20px 70px;}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px;}
+.sc{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px 20px;box-shadow:var(--shadow);animation:fadeUp .4s ease both;
+  display:flex;align-items:center;gap:13px;
+}
+.sc:nth-child(2){animation-delay:.06s;}.sc:nth-child(3){animation-delay:.12s;}
+.sc-ico{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;flex-shrink:0;}
+.s1 .sc-ico{background:var(--primary-lt);}
+.s2 .sc-ico{background:var(--secondary-lt);}
+.s3 .sc-ico{background:var(--accent-lt);}
+.sc-num{font-size:1.8rem;font-weight:700;line-height:1;}
+.sc-lbl{font-size:.73rem;color:var(--text2);margin-top:3px;font-weight:500;}
+.s1 .sc-num{color:var(--primary);}
+.s2 .sc-num{color:var(--secondary);}
+.s3 .sc-num{color:var(--accent);}
+
+/* Cards */
+.card{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  padding:24px;margin-bottom:20px;box-shadow:var(--shadow);animation:fadeUp .45s ease .1s both;
+}
+.ch{display:flex;align-items:center;gap:10px;margin-bottom:20px;}
+.ch .bar{width:4px;height:22px;border-radius:4px;background:linear-gradient(180deg,var(--primary),var(--secondary));}
+.ch .bar-g{width:4px;height:22px;border-radius:4px;background:linear-gradient(180deg,#1D6F42,#2E9B5E);}
+.ch h2{font-size:.98rem;font-weight:700;}
+
+/* Form grids */
+.fg3{display:grid;gap:13px;grid-template-columns:155px 1fr 1fr;}
+.fg4{display:grid;gap:13px;grid-template-columns:1fr 1fr 1fr 1fr;margin-top:13px;}
+.fld label{display:block;font-size:.77rem;color:var(--text2);margin-bottom:5px;font-weight:600;}
+.fld input,.fld select{
+  width:100%;padding:10px 13px;border-radius:10px;
+  border:1.5px solid var(--border);background:#FAFBFF;color:var(--text);
+  font-family:'Kanit',sans-serif;font-size:.9rem;transition:border .2s,box-shadow .2s;
+}
+.fld input:focus,.fld select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,110,247,.09);}
+.fld select option{background:#fff;}
+.fld input[readonly]{background:var(--bg2);color:var(--text2);cursor:default;border-style:dashed;}
+
+.btn-row{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
+.btn{
+  padding:10px 22px;border-radius:10px;border:none;cursor:pointer;
+  font-family:'Kanit',sans-serif;font-size:.9rem;font-weight:700;transition:all .2s;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.btn-primary{background:linear-gradient(135deg,var(--primary),#7C8CF8);color:#fff;box-shadow:0 3px 14px rgba(79,110,247,.28);}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 5px 20px rgba(79,110,247,.4);}
+.btn-ghost{background:var(--bg);color:var(--text2);border:1.5px solid var(--border);}
+.btn-ghost:hover{background:var(--bg2);color:var(--text);}
+.btn-excel{background:linear-gradient(135deg,#1D6F42,#2E9B5E);color:#fff;box-shadow:0 3px 14px rgba(29,111,66,.22);}
+.btn-excel:hover{transform:translateY(-2px);box-shadow:0 5px 20px rgba(29,111,66,.38);}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important;}
+
+/* Export */
+.exp-row{display:grid;gap:13px;grid-template-columns:1fr 1fr 1fr auto;align-items:flex-end;}
+.exp-prev{margin-top:12px;padding:11px 15px;border-radius:10px;background:var(--excel-lt);border:1px solid #A8D8BC;font-size:.84rem;color:var(--excel);font-weight:600;display:none;}
+.exp-prev.show{display:flex;align-items:center;gap:7px;}
+.exp-hint{margin-top:8px;font-size:.76rem;color:var(--text3);}
+
+/* Toast */
+.toast{
+  position:fixed;top:70px;right:18px;z-index:9998;
+  padding:12px 18px;border-radius:12px;font-size:.86rem;font-weight:600;
+  max-width:380px;display:none;animation:slideIn .3s ease;box-shadow:0 4px 20px rgba(0,0,0,.12);
+}
+.toast.success{background:#E8FBF4;border:1px solid #A7F3D0;color:#065F46;}
+.toast.error  {background:#FFF1F1;border:1px solid #FECACA;color:#991B1B;}
+.toast.info   {background:var(--primary-lt);border:1px solid #C5CEFF;color:#3730A3;}
+
+/* Table */
+.tbl-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);animation:fadeUp .5s ease .18s both;}
+.tbl-head{padding:15px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.tbl-head h2{font-size:.98rem;font-weight:700;display:flex;align-items:center;gap:8px;}
+.srch{position:relative;}
+.srch input{padding:8px 13px 8px 34px;border-radius:9px;border:1.5px solid var(--border);background:#FAFBFF;color:var(--text);font-family:'Kanit',sans-serif;font-size:.84rem;width:220px;transition:border .2s;}
+.srch input:focus{outline:none;border-color:var(--primary);}
+.srch .si{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:.88rem;}
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:.87rem;}
+thead tr{background:var(--bg);}
+th{padding:11px 14px;text-align:left;font-weight:700;font-size:.73rem;color:var(--text2);white-space:nowrap;letter-spacing:.04em;text-transform:uppercase;}
+td{padding:12px 14px;border-top:1px solid var(--border);white-space:nowrap;color:var(--text);}
+tbody tr:hover{background:#F8F9FF;}
+.pill{display:inline-block;padding:2px 10px;border-radius:20px;font-size:.74rem;font-weight:700;}
+.pill-นาย{background:#EEF6FF;color:#1D6FB5;border:1px solid #BFDBFE;}
+.pill-นางสาว{background:#FDF2FA;color:#9B2C8B;border:1px solid #F5C6EE;}
+.pill-นาง{background:#FFF8E7;color:#B45309;border:1px solid #FDE68A;}
+.pill-store{background:#F0FDF4;color:#166534;border:1px solid #BBF7D0;font-size:.72rem;}
+.abt{padding:5px 12px;border-radius:8px;font-family:'Kanit',sans-serif;font-size:.76rem;font-weight:700;cursor:pointer;border:none;transition:all .15s;}
+.abt-edit{background:var(--primary-lt);color:var(--primary);border:1px solid #C5CEFF;}
+.abt-edit:hover{background:#D8DEFF;}
+.abt-del{background:var(--secondary-lt);color:var(--secondary);border:1px solid #FFBFCB;margin-left:5px;}
+.abt-del:hover{background:#FFD6DE;}
+.no-data{padding:42px;text-align:center;color:var(--text3);font-size:.88rem;}
+
+/* Modal */
+.mo{position:fixed;inset:0;background:rgba(26,29,46,.45);backdrop-filter:blur(5px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;}
+.mo.open{display:flex;}
+.mo-box{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px;width:100%;max-width:480px;box-shadow:0 12px 40px rgba(79,110,247,.2);animation:fadeUp .3s ease;}
+.mo-box h3{font-size:1rem;font-weight:700;margin-bottom:20px;}
+.mo-box .fld{margin-bottom:13px;}
+.mo-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}
+
+/* Confirm dialog */
+.confirm-overlay{position:fixed;inset:0;background:rgba(26,29,46,.5);backdrop-filter:blur(4px);z-index:300;display:none;align-items:center;justify-content:center;padding:20px;}
+.confirm-overlay.open{display:flex;}
+.confirm-box{background:var(--card);border-radius:18px;padding:26px;max-width:380px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.2);animation:fadeUp .25s ease;}
+.confirm-box h4{font-size:1rem;font-weight:700;margin-bottom:10px;}
+.confirm-box p{font-size:.88rem;color:var(--text2);margin-bottom:20px;line-height:1.6;}
+.confirm-btns{display:flex;gap:10px;justify-content:flex-end;}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
+@keyframes slideIn{from{opacity:0;transform:translateX(18px);}to{opacity:1;transform:translateX(0);}}
+
+/* Responsive */
+@media(max-width:780px){
+  .exp-row{grid-template-columns:1fr 1fr;}.exp-row .btn-excel{grid-column:span 2;}
+  .fg4{grid-template-columns:1fr 1fr;}
+}
+@media(max-width:640px){
+  .fg3,.fg4{grid-template-columns:1fr;}
+  .stats-row{grid-template-columns:1fr 1fr;}.sc:last-child{grid-column:span 2;}
+  .topbar{padding:0 12px;}.tb-title{font-size:.88rem;}
+  .content{padding:14px 10px 60px;}
+  .card{padding:18px 14px;}
+  .btn-row{flex-direction:column;}.btn{width:100%;justify-content:center;}
+  .srch input{width:100%;}
+  .tbl-head{flex-direction:column;align-items:stretch;}
+  .login-box{padding:28px 18px;}
+  .exp-row{grid-template-columns:1fr;}.exp-row .btn-excel{grid-column:span 1;}
+  .topbar-right .tb-info{display:none;}
+}
+@media(max-width:380px){
+  .stats-row{grid-template-columns:1fr;}.sc:last-child{grid-column:span 1;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══ LOADING ══ -->
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="loading-txt">กำลังเชื่อมต่อ Firebase...</div>
+</div>
+
+<!-- ══ LOGIN ══ -->
+<div id="login-page">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="icon">📋</div>
+      <h1>ระบบบันทึกข้อมูล</h1>
+      <p>กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
+    </div>
+    <div class="fg">
+      <label>ชื่อผู้ใช้</label>
+      <input type="text" id="lu" placeholder="เช่น Store001 หรือ admin" autocomplete="off"/>
+    </div>
+    <div class="fg">
+      <label>รหัสผ่าน</label>
+      <input type="password" id="lp" placeholder="กรอกรหัสผ่าน"/>
+    </div>
+    <button class="btn-login" onclick="doLogin()">เข้าสู่ระบบ</button>
+    <div class="login-err" id="lerr">⚠️ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</div>
+    <div class="login-hint">
+      <b>💡 ข้อมูลการเข้าใช้งาน</b><br/>
+      Admin: <b>admin</b> / <b>admin123</b><br/>
+      User สาขา: Username <b>Store001–Store200</b><br/>
+      รหัสผ่าน = ชื่อ user ตัวพิมพ์เล็ก เช่น Store001 → <b>store001</b>
+    </div>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="app-page">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="tb-logo">📋</div>
+      <span class="tb-title">ระบบบันทึกชื่อ-นามสกุล</span>
+    </div>
+    <div class="topbar-right">
+      <span><span class="online-dot" id="conn-dot"></span><span id="conn-txt" style="font-size:.75rem;color:var(--text2);"></span></span>
+      <span class="tb-info" id="tb-name"></span>
+      <span class="badge" id="tb-role"></span>
+      <span class="badge badge-store" id="tb-store" style="display:none;"></span>
+      <button class="btn-logout" onclick="doLogout()">ออกจากระบบ</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="sc s1"><div class="sc-ico">📋</div><div><div class="sc-num" id="st0">0</div><div class="sc-lbl" id="stl0">รายการทั้งหมด</div></div></div>
+      <div class="sc s2"><div class="sc-ico">📅</div><div><div class="sc-num" id="st1">0</div><div class="sc-lbl">บันทึกวันนี้</div></div></div>
+      <div class="sc s3"><div class="sc-ico">📆</div><div><div class="sc-num" id="st2">0</div><div class="sc-lbl">เดือนนี้</div></div></div>
+    </div>
+
+    <!-- Form -->
+    <div class="card">
+      <div class="ch"><div class="bar"></div><h2>กรอกข้อมูลชื่อ-นามสกุล</h2></div>
+      <div class="fg3">
+        <div class="fld">
+          <label>คำนำหน้า <span style="color:var(--secondary)">*</span></label>
+          <select id="fp">
+            <option value="">-- เลือก --</option>
+            <option>นาย</option><option>นางสาว</option><option>นาง</option>
+          </select>
+        </div>
+        <div class="fld">
+          <label>ชื่อ <span style="color:var(--secondary)">*</span></label>
+          <input type="text" id="ff" placeholder="กรอกชื่อ" maxlength="100"/>
+        </div>
+        <div class="fld">
+          <label>นามสกุล <span style="color:var(--secondary)">*</span></label>
+          <input type="text" id="fl" placeholder="กรอกนามสกุล" maxlength="100"/>
+        </div>
+      </div>
+      <div class="fg4">
+        <div class="fld">
+          <label>สาขา <span style="color:var(--secondary)">*</span></label>
+          <select id="fstore"></select>
+        </div>
+        <div class="fld">
+          <label>วันที่บันทึก</label>
+          <input type="text" id="fdate" readonly/>
+        </div>
+        <div class="fld">
+          <label>บันทึกโดย</label>
+          <input type="text" id="fby" readonly/>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-save" onclick="saveRec()">💾 บันทึกข้อมูล</button>
+        <button class="btn btn-ghost"   onclick="clearForm()">🗑 ล้างแบบฟอร์ม</button>
+      </div>
+    </div>
+
+    <!-- Export (Admin only) -->
+    <div class="card" id="exp-card" style="display:none;">
+      <div class="ch"><div class="bar-g"></div><h2>📤 Export ข้อมูลเป็น Excel</h2></div>
+      <div class="exp-row">
+        <div class="fld">
+          <label>สาขา (ทั้งหมด = ไม่เลือก)</label>
+          <select id="exp-store" onchange="updatePrev()">
+            <option value="">— ทุกสาขา —</option>
+          </select>
+        </div>
+        <div class="fld">
+          <label>วันที่เริ่มต้น</label>
+          <input type="date" id="exp-from" onchange="updatePrev()"/>
+        </div>
+        <div class="fld">
+          <label>วันที่สิ้นสุด</label>
+          <input type="date" id="exp-to" onchange="updatePrev()"/>
+        </div>
+        <div class="fld">
+          <label style="visibility:hidden;">x</label>
+          <button class="btn btn-excel" onclick="exportExcel()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+            Export Excel
+          </button>
+        </div>
+      </div>
+      <div class="exp-prev" id="exp-prev"><span>📊</span><span id="prev-txt"></span></div>
+      <div class="exp-hint">💡 หากไม่เลือกสาขาหรือวันที่ จะ Export ข้อมูลทั้งหมด</div>
+    </div>
+
+    <!-- Table -->
+    <div class="tbl-card">
+      <div class="tbl-head">
+        <h2>📋 รายการ <span style="color:var(--primary)">(<span id="tbl-cnt">0</span>)</span></h2>
+        <div class="srch"><span class="si">🔍</span>
+          <input type="text" id="srch" placeholder="ค้นหาชื่อ / สาขา..." oninput="renderTbl()"/>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>คำนำหน้า</th><th>ชื่อ</th><th>นามสกุล</th>
+            <th>สาขา</th><th>วันที่บันทึก</th><th>บันทึกโดย</th>
+            <th id="act-col" style="display:none;">จัดการ</th>
+          </tr></thead>
+          <tbody id="tbl-body"><tr><td colspan="8" class="no-data">⏳ กำลังโหลดข้อมูล...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Edit Modal -->
+<div class="mo" id="modal">
+  <div class="mo-box">
+    <h3>✏️ แก้ไขข้อมูล</h3>
+    <div class="fld"><label>คำนำหน้า</label>
+      <select id="mp"><option>นาย</option><option>นางสาว</option><option>นาง</option></select>
+    </div>
+    <div class="fld"><label>ชื่อ</label><input type="text" id="mf" maxlength="100"/></div>
+    <div class="fld"><label>นามสกุล</label><input type="text" id="ml" maxlength="100"/></div>
+    <div class="fld"><label>สาขา</label><select id="ms"></select></div>
+    <div class="mo-btns">
+      <button class="btn btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="saveEdit()">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Dialog -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <h4>⚠️ ยืนยันการลบ</h4>
+    <p id="confirm-msg"></p>
+    <div class="confirm-btns">
+      <button class="btn btn-ghost" onclick="closeConfirm()">ยกเลิก</button>
+      <button class="btn" id="confirm-ok" style="background:#E53935;color:#fff;">🗑 ลบ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════
+   FIREBASE CONFIG
+   ══════════════════════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey:            "AIzaSyBrawht7dvGn6sqxpAP_fSGRS0Jgj6b-VM",
+  authDomain:        "dada-pro.firebaseapp.com",
+  databaseURL:       "https://dada-pro-default-rtdb.asia-southeast1.firebasedatabase.app/",
+  projectId:         "dada-pro",
+  storageBucket:     "dada-pro.firebasestorage.app",
+  messagingSenderId: "301873007650",
+  appId:             "1:301873007650:web:51bbbdfaae1f591a2c4e7b",
+  measurementId:     "G-MX840KM5QY"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db      = firebase.database();
+const recRef  = db.ref('name_records');   // path in Realtime DB
+
+/* ══════════════════════════════════════════════════════
+   ACCOUNTS (200 stores + admin)
+   ══════════════════════════════════════════════════════ */
+const STORES   = Array.from({length:200}, (_,i) => `Store${String(i+1).padStart(3,'0')}`);
+const ACCOUNTS = { admin:{ pass:'admin123', role:'admin', display:'ผู้ดูแลระบบ', store:null } };
+STORES.forEach(s => { ACCOUNTS[s] = { pass:s.toLowerCase(), role:'user', display:`ผู้ใช้ ${s}`, store:s }; });
+
+/* ══ APP STATE ══ */
+let records     = {};   // key → record object (from Firebase)
+let currentUser = null;
+let editKey     = null;
+let unsubscribe = null; // Firebase listener cleanup
+
+/* ══════════════════════════════════════════════════════
+   DATE HELPERS
+   ══════════════════════════════════════════════════════ */
+const MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function todayStr(){
+  const d=new Date();
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()+543}`;
+}
+function todayISO(){
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function isoThai(iso){
+  if(!iso) return '';
+  const [y,m,d]=iso.split('-');
+  return `${parseInt(d)} ${MONTHS[parseInt(m)-1]} ${parseInt(y)+543}`;
+}
+
+/* ══════════════════════════════════════════════════════
+   CONNECTION STATUS
+   ══════════════════════════════════════════════════════ */
+db.ref('.info/connected').on('value', snap => {
+  const online = snap.val() === true;
+  document.getElementById('conn-dot').className = 'online-dot ' + (online ? 'on' : 'off');
+  document.getElementById('conn-txt').textContent = online ? 'ออนไลน์' : 'ออฟไลน์';
+});
+
+/* ══════════════════════════════════════════════════════
+   STORE DROPDOWNS
+   ══════════════════════════════════════════════════════ */
+function buildStoreDropdowns(isAdmin, userStore){
+  const fstore = document.getElementById('fstore');
+  if(isAdmin){
+    fstore.innerHTML = '<option value="">-- เลือกสาขา --</option>' +
+      STORES.map(s=>`<option>${s}</option>`).join('');
+    fstore.disabled = false;
+  } else {
+    fstore.innerHTML = `<option value="${userStore}">${userStore}</option>`;
+    fstore.disabled  = true;
+  }
+  document.getElementById('exp-store').innerHTML =
+    '<option value="">— ทุกสาขา —</option>' + STORES.map(s=>`<option>${s}</option>`).join('');
+  document.getElementById('ms').innerHTML =
+    STORES.map(s=>`<option>${s}</option>`).join('');
+}
+
+/* ══════════════════════════════════════════════════════
+   FIREBASE LISTENER — real-time sync
+   ══════════════════════════════════════════════════════ */
+function startListen(){
+  // Remove old listener if any
+  if(unsubscribe){ recRef.off('value', unsubscribe); }
+
+  unsubscribe = recRef.on('value', snap => {
+    records = snap.val() || {};
+    updateStats();
+    renderTbl();
+    if(currentUser?.role === 'admin') updatePrev();
+  });
+}
+
+function stopListen(){
+  if(unsubscribe){ recRef.off('value', unsubscribe); unsubscribe=null; }
+}
+
+/* ══════════════════════════════════════════════════════
+   LOGIN / LOGOUT
+   ══════════════════════════════════════════════════════ */
+document.getElementById('lp').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+document.getElementById('lu').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('lp').focus(); });
+
+function doLogin(){
+  const u   = document.getElementById('lu').value.trim();
+  const p   = document.getElementById('lp').value;
+  const acc = ACCOUNTS[u];
+  if(!acc || acc.pass !== p){
+    document.getElementById('lerr').style.display='block'; return;
+  }
+  document.getElementById('lerr').style.display='none';
+  currentUser = { ...acc, username:u };
+
+  document.getElementById('login-page').classList.remove('show');
+  document.getElementById('app-page').classList.add('show');
+
+  // Topbar
+  document.getElementById('tb-name').textContent = acc.display;
+  const rb = document.getElementById('tb-role');
+  rb.textContent = acc.role==='admin' ? '👑 Admin' : '👤 User';
+  rb.className   = 'badge ' + (acc.role==='admin' ? 'badge-admin' : 'badge-user');
+  if(acc.role==='user'){
+    const sb = document.getElementById('tb-store');
+    sb.textContent = '🏪 '+acc.store; sb.style.display='';
+  } else {
+    document.getElementById('tb-store').style.display='none';
+  }
+
+  const isAdmin = acc.role==='admin';
+  document.getElementById('act-col').style.display  = isAdmin ? '' : 'none';
+  document.getElementById('exp-card').style.display  = isAdmin ? '' : 'none';
+  document.getElementById('stl0').textContent        = isAdmin ? 'รายการทั้งหมด' : 'รายการสาขา';
+
+  buildStoreDropdowns(isAdmin, acc.store);
+  document.getElementById('fdate').value = todayStr();
+  document.getElementById('fby').value   = acc.display;
+
+  const t = todayISO();
+  document.getElementById('exp-from').value = t;
+  document.getElementById('exp-to').value   = t;
+
+  // Start listening to Firebase
+  startListen();
+}
+
+function doLogout(){
+  stopListen();
+  currentUser = null;
+  records     = {};
+  document.getElementById('app-page').classList.remove('show');
+  document.getElementById('login-page').classList.add('show');
+  document.getElementById('lu').value = '';
+  document.getElementById('lp').value = '';
+  document.getElementById('lerr').style.display = 'none';
+  document.getElementById('fstore').disabled = false;
+}
+
+/* ══════════════════════════════════════════════════════
+   VISIBLE RECORDS
+   ══════════════════════════════════════════════════════ */
+function visibleArr(){
+  const all = Object.entries(records).map(([k,v]) => ({...v, _key:k}));
+  if(!currentUser || currentUser.role==='admin') return all;
+  return all.filter(r => r.store === currentUser.store);
+}
+
+/* ══════════════════════════════════════════════════════
+   SAVE RECORD → Firebase push
+   ══════════════════════════════════════════════════════ */
+function saveRec(){
+  const prefix = document.getElementById('fp').value;
+  const first  = document.getElementById('ff').value.trim();
+  const last   = document.getElementById('fl').value.trim();
+  const store  = document.getElementById('fstore').value;
+  if(!prefix){ showToast('กรุณาเลือกคำนำหน้า','error'); return; }
+  if(!first) { showToast('กรุณากรอกชื่อ','error'); return; }
+  if(!last)  { showToast('กรุณากรอกนามสกุล','error'); return; }
+  if(!store) { showToast('กรุณาเลือกสาขา','error'); return; }
+
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true;
+
+  const newRec = { prefix, first, last, store, date:todayStr(), iso:todayISO(), by:currentUser.display, ts:Date.now() };
+
+  recRef.push(newRec)
+    .then(() => {
+      showToast(`✅ บันทึก "${prefix}${first} ${last}" (${store}) เรียบร้อย`, 'success');
+      clearForm();
+    })
+    .catch(err => { showToast('❌ บันทึกไม่สำเร็จ: '+err.message, 'error'); })
+    .finally(() => { btn.disabled = false; });
+}
+
+function clearForm(){
+  document.getElementById('fp').value = '';
+  document.getElementById('ff').value = '';
+  document.getElementById('fl').value = '';
+  document.getElementById('fdate').value = todayStr();
+  if(currentUser?.role==='admin') document.getElementById('fstore').value = '';
+  document.getElementById('fp').focus();
+}
+
+/* ══════════════════════════════════════════════════════
+   RENDER TABLE
+   ══════════════════════════════════════════════════════ */
+function renderTbl(){
+  const q       = (document.getElementById('srch').value||'').toLowerCase();
+  const isAdmin = currentUser?.role === 'admin';
+  const base    = visibleArr();
+  // Sort newest first
+  base.sort((a,b) => (b.ts||0)-(a.ts||0));
+
+  const filtered = base.filter(r =>
+    (r.first||'').toLowerCase().includes(q) ||
+    (r.last||'').toLowerCase().includes(q)  ||
+    (r.prefix||'').includes(q) ||
+    (r.store||'').toLowerCase().includes(q)
+  );
+
+  document.getElementById('tbl-cnt').textContent = filtered.length;
+  const tbody = document.getElementById('tbl-body');
+
+  if(!filtered.length){
+    tbody.innerHTML = `<tr><td colspan="8" class="no-data">ไม่พบข้อมูล</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map((r,i) => `
+    <tr>
+      <td style="color:var(--text3);font-size:.78rem;font-weight:600;">${i+1}</td>
+      <td><span class="pill pill-${r.prefix}">${r.prefix}</span></td>
+      <td style="font-weight:600;">${r.first}</td>
+      <td>${r.last}</td>
+      <td><span class="pill pill-store">${r.store||'—'}</span></td>
+      <td style="color:var(--text2);font-size:.8rem;">${r.date}</td>
+      <td style="color:var(--text2);font-size:.8rem;">${r.by}</td>
+      ${isAdmin
+        ? `<td>
+             <button class="abt abt-edit" onclick="openEdit('${r._key}')">✏️ แก้ไข</button>
+             <button class="abt abt-del"  onclick="confirmDel('${r._key}')">🗑 ลบ</button>
+           </td>`
+        : `<td style="display:none;"></td>`}
+    </tr>`).join('');
+}
+
+/* ══════════════════════════════════════════════════════
+   DELETE
+   ══════════════════════════════════════════════════════ */
+function confirmDel(key){
+  const r = records[key];
+  document.getElementById('confirm-msg').textContent =
+    `ต้องการลบ "${r.prefix}${r.first} ${r.last}" (${r.store}) ใช่หรือไม่?`;
+  document.getElementById('confirm-ok').onclick = () => doDelete(key);
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+function closeConfirm(){ document.getElementById('confirm-overlay').classList.remove('open'); }
+
+function doDelete(key){
+  closeConfirm();
+  recRef.child(key).remove()
+    .then(()  => showToast('ลบรายการเรียบร้อยแล้ว','info'))
+    .catch(e  => showToast('❌ ลบไม่สำเร็จ: '+e.message,'error'));
+}
+
+/* ══════════════════════════════════════════════════════
+   EDIT
+   ══════════════════════════════════════════════════════ */
+function openEdit(key){
+  editKey = key;
+  const r = records[key];
+  document.getElementById('mp').value = r.prefix;
+  document.getElementById('mf').value = r.first;
+  document.getElementById('ml').value = r.last;
+  document.getElementById('ms').value = r.store||'';
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(){ document.getElementById('modal').classList.remove('open'); editKey=null; }
+function saveEdit(){
+  const prefix = document.getElementById('mp').value;
+  const first  = document.getElementById('mf').value.trim();
+  const last   = document.getElementById('ml').value.trim();
+  const store  = document.getElementById('ms').value;
+  if(!first||!last){ showToast('กรุณากรอกข้อมูลให้ครบ','error'); return; }
+
+  recRef.child(editKey).update({ prefix, first, last, store })
+    .then(()  => { showToast('✅ แก้ไขข้อมูลเรียบร้อยแล้ว','success'); closeModal(); })
+    .catch(e  => showToast('❌ แก้ไขไม่สำเร็จ: '+e.message,'error'));
+}
+document.getElementById('modal').addEventListener('click', e => {
+  if(e.target===document.getElementById('modal')) closeModal();
+});
+
+/* ══════════════════════════════════════════════════════
+   STATS
+   ══════════════════════════════════════════════════════ */
+function updateStats(){
+  const base  = visibleArr();
+  const today = todayISO(), ym = today.slice(0,7);
+  document.getElementById('st0').textContent = base.length;
+  document.getElementById('st1').textContent = base.filter(r=>r.iso===today).length;
+  document.getElementById('st2').textContent = base.filter(r=>(r.iso||'').startsWith(ym)).length;
+}
+
+/* ══════════════════════════════════════════════════════
+   EXPORT
+   ══════════════════════════════════════════════════════ */
+function getExpData(){
+  const store = document.getElementById('exp-store').value;
+  const from  = document.getElementById('exp-from').value;
+  const to    = document.getElementById('exp-to').value;
+  return Object.values(records).filter(r=>{
+    if(store && r.store!==store) return false;
+    if(from  && r.iso<from)      return false;
+    if(to    && r.iso>to)        return false;
+    return true;
+  }).sort((a,b)=>(a.iso||'').localeCompare(b.iso||'') || (a.ts||0)-(b.ts||0));
+}
+
+function updatePrev(){
+  if(!currentUser || currentUser.role!=='admin') return;
+  const d     = getExpData();
+  const store = document.getElementById('exp-store').value;
+  const from  = document.getElementById('exp-from').value;
+  const to    = document.getElementById('exp-to').value;
+  let msg = `พบ ${d.length} รายการ`;
+  if(store) msg += ` · สาขา ${store}`;
+  if(from||to) msg += ` · ${isoThai(from)||'—'} ถึง ${isoThai(to)||'—'}`;
+  document.getElementById('prev-txt').textContent = msg;
+  document.getElementById('exp-prev').classList.add('show');
+}
+
+function exportExcel(){
+  const data  = getExpData();
+  if(!data.length){ showToast('ไม่พบข้อมูลในเงื่อนไขที่เลือก','error'); return; }
+  const store = document.getElementById('exp-store').value;
+  const from  = document.getElementById('exp-from').value;
+  const to    = document.getElementById('exp-to').value;
+
+  const wsData = [
+    ['ระบบบันทึกชื่อ-นามสกุล'],
+    [store ? `สาขา: ${store}` : 'ทุกสาขา', '', from||to ? `ช่วงวันที่: ${isoThai(from)||'—'} ถึง ${isoThai(to)||'—'}` : ''],
+    [],
+    ['ลำดับ','สาขา','คำนำหน้า','ชื่อ','นามสกุล','ชื่อ-นามสกุลเต็ม','วันที่บันทึก','บันทึกโดย'],
+    ...data.map((r,i) => [i+1, r.store||'', r.prefix, r.first, r.last, `${r.prefix}${r.first} ${r.last}`, r.date, r.by])
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{wch:7},{wch:12},{wch:11},{wch:20},{wch:22},{wch:30},{wch:20},{wch:18}];
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:2}},{s:{r:1,c:2},e:{r:1,c:7}}];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'รายชื่อ');
+
+  let fname = 'รายชื่อ';
+  if(store) fname += `_${store}`;
+  if(from)  fname += `_${from}`;
+  if(to && to!==from) fname += `_to_${to}`;
+  XLSX.writeFile(wb, fname+'.xlsx');
+  showToast(`✅ Export สำเร็จ ${data.length} รายการ`,'success');
+}
+
+/* ══════════════════════════════════════════════════════
+   TOAST
+   ══════════════════════════════════════════════════════ */
+let toastT;
+function showToast(msg, type='success'){
+  clearTimeout(toastT);
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${type}`; t.style.display='block';
+  toastT = setTimeout(()=>{ t.style.display='none'; }, 3600);
+}
+
+/* ══════════════════════════════════════════════════════
+   ENTER KEY
+   ══════════════════════════════════════════════════════ */
+[['fp','ff'],['ff','fl'],['fl',null]].forEach(([id,next])=>{
+  document.getElementById(id)?.addEventListener('keydown', e=>{
+    if(e.key!=='Enter') return;
+    if(next) document.getElementById(next).focus(); else saveRec();
+  });
+});
+
+/* ══════════════════════════════════════════════════════
+   INIT — hide loading, show login after Firebase ready
+   ══════════════════════════════════════════════════════ */
+db.ref('.info/connected').once('value').then(()=>{
+  document.getElementById('loading').classList.add('hide');
+  document.getElementById('login-page').classList.add('show');
+}).catch(()=>{
+  document.getElementById('loading').classList.add('hide');
+  document.getElementById('login-page').classList.add('show');
+});
+</script>
+</body>
+</html>
