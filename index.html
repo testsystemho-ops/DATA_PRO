@@ -8,6 +8,8 @@
 <!-- SheetJS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Firebase SDK v9 (compat) -->
+<!-- html5-qrcode for QR Login -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
@@ -56,7 +58,7 @@ html,body{min-height:100vh;font-family:'Kanit',sans-serif;background:var(--bg);c
 #login-page.show{display:flex;}
 .login-box{
   background:var(--card);border:1px solid var(--border);border-radius:24px;
-  padding:42px 38px;width:100%;max-width:420px;
+  padding:36px 38px;width:100%;max-width:460px;
   box-shadow:0 8px 40px rgba(79,110,247,.13);animation:fadeUp .45s ease both;
 }
 .login-logo{text-align:center;margin-bottom:28px;}
@@ -93,6 +95,70 @@ html,body{min-height:100vh;font-family:'Kanit',sans-serif;background:var(--bg);c
   font-size:.78rem;color:var(--text2);border:1px solid var(--border);line-height:1.8;
 }
 .login-hint b{color:var(--text);}
+
+/* QR Login */
+.login-tabs{display:flex;gap:0;margin-bottom:24px;border-radius:12px;overflow:hidden;border:1.5px solid var(--border);}
+.login-tab{
+  flex:1;padding:10px;text-align:center;cursor:pointer;
+  font-family:'Kanit',sans-serif;font-size:.88rem;font-weight:600;
+  background:var(--bg);color:var(--text2);border:none;transition:all .2s;
+}
+.login-tab.active{background:var(--primary);color:#fff;}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+
+/* QR scanner area */
+.qr-wrap{
+  border-radius:14px;overflow:hidden;background:#000;
+  position:relative;margin-bottom:14px;
+  min-height:260px;display:flex;align-items:center;justify-content:center;
+}
+#qr-reader{width:100%;}
+#qr-reader video{border-radius:14px;}
+.qr-overlay{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  pointer-events:none;
+}
+.qr-frame{
+  width:180px;height:180px;border-radius:16px;
+  border:3px solid rgba(79,110,247,.8);
+  box-shadow:0 0 0 9999px rgba(0,0,0,.45);
+  position:relative;
+}
+.qr-frame::before,.qr-frame::after,
+.qr-corner-bl,.qr-corner-br{
+  content:'';position:absolute;width:22px;height:22px;border-color:var(--primary);border-style:solid;
+}
+.qr-frame::before{top:-3px;left:-3px;border-width:4px 0 0 4px;border-radius:4px 0 0 0;}
+.qr-frame::after{top:-3px;right:-3px;border-width:4px 4px 0 0;border-radius:0 4px 0 0;}
+.qr-corner-bl{bottom:-3px;left:-3px;border-width:0 0 4px 4px;border-radius:0 0 0 4px;}
+.qr-corner-br{bottom:-3px;right:-3px;border-width:0 4px 4px 0;border-radius:0 0 4px 0;}
+
+.qr-status{
+  padding:10px 14px;border-radius:10px;font-size:.84rem;font-weight:600;text-align:center;
+  margin-bottom:10px;display:none;
+}
+.qr-status.scanning{background:var(--primary-lt);color:var(--primary);border:1px solid #C5CEFF;display:block;}
+.qr-status.success {background:#E8FBF4;color:#065F46;border:1px solid #A7F3D0;display:block;}
+.qr-status.error   {background:#FFF1F1;color:#C62828;border:1px solid #FFCDD2;display:block;}
+
+.qr-hint{font-size:.78rem;color:var(--text3);text-align:center;margin-top:8px;line-height:1.6;}
+.btn-qr-stop{
+  width:100%;padding:10px;border:1.5px solid var(--border);border-radius:10px;
+  background:var(--bg);color:var(--text2);
+  font-family:'Kanit',sans-serif;font-size:.88rem;font-weight:600;cursor:pointer;
+  margin-top:6px;transition:all .2s;display:none;
+}
+.btn-qr-stop:hover{background:var(--bg2);}
+.btn-qr-stop.show{display:block;}
+
+/* QR generate section (for printing) */
+.qr-gen-wrap{
+  background:var(--bg);border:1px solid var(--border);border-radius:12px;
+  padding:16px;margin-top:16px;display:none;
+}
+.qr-gen-wrap.show{display:block;}
+
 
 /* ══ TOPBAR ══ */
 #app-page{display:none;min-height:100vh;}
@@ -306,16 +372,42 @@ tbody tr:hover{background:#F8F9FF;}
       <h1>ระบบบันทึกข้อมูล</h1>
       <p>กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
     </div>
-    <div class="fg">
-      <label>ชื่อผู้ใช้</label>
-      <input type="text" id="lu" placeholder="กรอกชื่อผู้ใช้" autocomplete="off"/>
+
+    <!-- Tabs -->
+    <div class="login-tabs">
+      <button class="login-tab active" onclick="switchTab('manual')">🔑 กรอกรหัสผ่าน</button>
+      <button class="login-tab" onclick="switchTab('qr')">📷 สแกน QR Code</button>
     </div>
-    <div class="fg">
-      <label>รหัสผ่าน</label>
-      <input type="password" id="lp" placeholder="กรอกรหัสผ่าน"/>
+
+    <!-- Tab: Manual -->
+    <div class="tab-panel active" id="tab-manual">
+      <div class="fg">
+        <label>ชื่อผู้ใช้</label>
+        <input type="text" id="lu" placeholder="กรอกชื่อผู้ใช้" autocomplete="off"/>
+      </div>
+      <div class="fg">
+        <label>รหัสผ่าน</label>
+        <input type="password" id="lp" placeholder="กรอกรหัสผ่าน"/>
+      </div>
+      <button class="btn-login" onclick="doLogin()">เข้าสู่ระบบ</button>
+      <div class="login-err" id="lerr">⚠️ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</div>
     </div>
-    <button class="btn-login" onclick="doLogin()">เข้าสู่ระบบ</button>
-    <div class="login-err" id="lerr">⚠️ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</div>
+
+    <!-- Tab: QR Scan -->
+    <div class="tab-panel" id="tab-qr">
+      <div class="qr-status" id="qr-status"></div>
+      <div class="qr-wrap">
+        <div id="qr-reader"></div>
+        <div class="qr-overlay">
+          <div class="qr-frame">
+            <div class="qr-corner-bl"></div>
+            <div class="qr-corner-br"></div>
+          </div>
+        </div>
+      </div>
+      <button class="btn-qr-stop" id="btn-qr-stop" onclick="stopQR()">⏹ หยุดกล้อง</button>
+      <p class="qr-hint">📱 นำ QR Code ของสาขาคุณมาส่องที่กล้อง<br/>ระบบจะ Login อัตโนมัติ</p>
+    </div>
 
   </div>
 </div>
@@ -881,6 +973,83 @@ function showToast(msg, type='success'){
   });
 });
 
+
+/* ══════════════════════════════════════════════════════
+   QR CODE LOGIN
+   QR data format:  user:Store001|pass:store001
+   ══════════════════════════════════════════════════════ */
+let html5QrCode = null;
+let qrScanning  = false;
+
+function switchTab(tab){
+  document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+  if(tab === 'qr'){
+    startQR();
+  } else {
+    stopQR();
+    setQRStatus('','');
+  }
+}
+
+function setQRStatus(msg, type){
+  const el = document.getElementById('qr-status');
+  el.textContent = msg;
+  el.className   = 'qr-status' + (type ? ' '+type : '');
+}
+
+function startQR(){
+  if(qrScanning) return;
+  setQRStatus('กำลังเปิดกล้อง...','scanning');
+  document.getElementById('btn-qr-stop').classList.add('show');
+  html5QrCode = new Html5Qrcode('qr-reader');
+  html5QrCode.start(
+    { facingMode:'environment' },
+    { fps:10, qrbox:{width:200, height:200}, aspectRatio:1.0 },
+    (decodedText) => { handleQRResult(decodedText); },
+    () => {}
+  ).then(()=>{
+    qrScanning = true;
+    setQRStatus('✅ กล้องพร้อม — นำ QR Code สาขามาส่อง','scanning');
+  }).catch(err=>{
+    qrScanning = false;
+    setQRStatus('❌ ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการเข้าถึงกล้อง','error');
+    document.getElementById('btn-qr-stop').classList.remove('show');
+  });
+}
+
+function stopQR(){
+  if(html5QrCode && qrScanning){
+    html5QrCode.stop().catch(()=>{});
+    qrScanning = false;
+  }
+  document.getElementById('btn-qr-stop').classList.remove('show');
+}
+
+function handleQRResult(text){
+  try {
+    // Format: user:Store001|pass:store001
+    const parts = {};
+    text.split('|').forEach(p=>{
+      const idx = p.indexOf(':');
+      if(idx > 0){ parts[p.slice(0,idx).trim()] = p.slice(idx+1).trim(); }
+    });
+    const u = parts['user'] || parts['username'] || parts['u'] || '';
+    const p = parts['pass'] || parts['password'] || parts['p'] || '';
+    if(!u || !p){ setQRStatus('❌ QR Code ไม่ถูกต้อง','error'); return; }
+    const acc = ACCOUNTS[u];
+    if(!acc || acc.pass !== p){ setQRStatus('❌ QR Code ไม่ตรงกับระบบ','error'); return; }
+    stopQR();
+    setQRStatus('✅ สแกนสำเร็จ! กำลังเข้าสู่ระบบ '+u+'...','success');
+    document.getElementById('lu').value = u;
+    document.getElementById('lp').value = p;
+    setTimeout(()=>{ doLogin(); }, 700);
+  } catch(e){
+    setQRStatus('❌ QR Code ไม่ถูกต้อง','error');
+  }
+}
 /* ══════════════════════════════════════════════════════
    INIT — hide loading, show login after Firebase ready
    ══════════════════════════════════════════════════════ */
