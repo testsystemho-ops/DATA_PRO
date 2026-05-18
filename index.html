@@ -369,7 +369,7 @@ tbody tr:hover{background:#F8F9FF;}
       <div class="exp-row">
         <div class="fld">
           <label>สาขา (ทั้งหมด = ไม่เลือก)</label>
-          <select id="exp-store" onchange="updatePrev()">
+          <select id="exp-store" onchange="updatePrev();renderTbl()">
             <option value="">— ทุกสาขา —</option>
           </select>
         </div>
@@ -654,18 +654,22 @@ function clearForm(){
    RENDER TABLE
    ══════════════════════════════════════════════════════ */
 function renderTbl(){
-  const q       = (document.getElementById('srch').value||'').toLowerCase();
-  const isAdmin = currentUser?.role === 'admin';
-  const base    = visibleArr();
+  const q           = (document.getElementById('srch').value||'').toLowerCase();
+  const isAdmin     = currentUser?.role === 'admin';
+  const filterStore = isAdmin ? (document.getElementById('exp-store')?.value||'') : '';
+  const base        = visibleArr();
   // Sort newest first
   base.sort((a,b) => (b.ts||0)-(a.ts||0));
 
-  const filtered = base.filter(r =>
-    (r.first||'').toLowerCase().includes(q) ||
-    (r.last||'').toLowerCase().includes(q)  ||
-    (r.prefix||'').includes(q) ||
-    (r.store||'').toLowerCase().includes(q)
-  );
+  const filtered = base.filter(r => {
+    if(filterStore && r.store !== filterStore) return false;
+    return (
+      (r.first||'').toLowerCase().includes(q) ||
+      (r.last||'').toLowerCase().includes(q)  ||
+      (r.prefix||'').includes(q) ||
+      (r.store||'').toLowerCase().includes(q)
+    );
+  });
 
   document.getElementById('tbl-cnt').textContent = filtered.length;
   const tbody = document.getElementById('tbl-body');
