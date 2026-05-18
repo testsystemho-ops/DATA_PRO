@@ -105,15 +105,15 @@ html,body{min-height:100vh;font-family:'Kanit',sans-serif;background:var(--bg);c
   display:flex;align-items:center;justify-content:space-between;
   box-shadow:0 1px 8px rgba(79,110,247,.07);
 }
-.topbar-left{display:flex;align-items:center;gap:12px;}
+.topbar-left{display:flex;align-items:center;gap:12px;min-width:0;}
 .tb-logo{
   width:38px;height:38px;border-radius:11px;
   background:linear-gradient(135deg,var(--primary),var(--secondary));
   display:flex;align-items:center;justify-content:center;font-size:1.1rem;
   box-shadow:0 2px 10px rgba(79,110,247,.25);flex-shrink:0;
 }
-.tb-title{font-size:.98rem;font-weight:700;}
-.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.tb-title{font-size:.98rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .tb-info{font-size:.78rem;color:var(--text2);font-weight:500;}
 .badge{padding:3px 11px;border-radius:20px;font-size:.72rem;font-weight:700;white-space:nowrap;}
 .badge-admin{background:var(--secondary-lt);color:var(--secondary);border:1px solid #FFBFCB;}
@@ -123,8 +123,16 @@ html,body{min-height:100vh;font-family:'Kanit',sans-serif;background:var(--bg);c
   padding:6px 14px;border-radius:9px;border:1.5px solid var(--border);
   background:var(--card);color:var(--text2);
   font-family:'Kanit',sans-serif;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s;
+  white-space:nowrap;
 }
 .btn-logout:hover{background:var(--bg);color:var(--text);border-color:var(--primary);}
+/* Topbar rows */
+.topbar-main-row{
+  display:flex;align-items:center;justify-content:space-between;
+  width:100%;
+}
+/* Mobile topbar sub-row — hidden on desktop */
+.tb-subrow{display:none;}
 
 /* ══ CONTENT ══ */
 .content{max-width:980px;margin:0 auto;padding:26px 20px 70px;}
@@ -253,7 +261,6 @@ tbody tr:hover{background:#F8F9FF;}
 @media(max-width:640px){
   .fg3,.fg4{grid-template-columns:1fr;}
   .stats-row{grid-template-columns:1fr 1fr;}.sc:last-child{grid-column:span 2;}
-  .topbar{padding:0 12px;}.tb-title{font-size:.88rem;}
   .content{padding:14px 10px 60px;}
   .card{padding:18px 14px;}
   .btn-row{flex-direction:column;}.btn{width:100%;justify-content:center;}
@@ -261,7 +268,22 @@ tbody tr:hover{background:#F8F9FF;}
   .tbl-head{flex-direction:column;align-items:stretch;}
   .login-box{padding:28px 18px;}
   .exp-row{grid-template-columns:1fr;}.exp-row .btn-excel{grid-column:span 1;}
-  .topbar-right .tb-info{display:none;}
+  /* Topbar: 2-row layout on mobile */
+  .topbar{
+    height:auto;padding:10px 14px;
+    flex-direction:column;align-items:stretch;gap:0;
+  }
+  .topbar-main-row{
+    display:flex;align-items:center;justify-content:space-between;width:100%;
+  }
+  .tb-title{font-size:.9rem;}
+  .tb-info{display:none;}
+  .topbar-right{display:none !important;}
+  .tb-subrow{
+    display:flex;align-items:center;justify-content:flex-end;
+    gap:6px;margin-top:8px;padding-top:8px;
+    border-top:1px solid var(--border);
+  }
 }
 @media(max-width:380px){
   .stats-row{grid-template-columns:1fr;}.sc:last-child{grid-column:span 1;}
@@ -301,16 +323,26 @@ tbody tr:hover{background:#F8F9FF;}
 <!-- ══ APP ══ -->
 <div id="app-page">
   <div class="topbar">
-    <div class="topbar-left">
-      <div class="tb-logo">📋</div>
-      <span class="tb-title">ระบบบันทึกชื่อ-นามสกุล</span>
+    <!-- Desktop row -->
+    <div class="topbar-main-row">
+      <div class="topbar-left">
+        <div class="tb-logo">📋</div>
+        <span class="tb-title">ระบบบันทึกชื่อ-นามสกุล</span>
+      </div>
+      <div class="topbar-right">
+        <span><span class="online-dot" id="conn-dot"></span><span id="conn-txt" style="font-size:.75rem;color:var(--text2);"></span></span>
+        <span class="tb-info" id="tb-name"></span>
+        <span class="badge" id="tb-role"></span>
+        <span class="badge badge-store" id="tb-store" style="display:none;"></span>
+        <button class="btn-logout" onclick="doLogout()">ออกจากระบบ</button>
+      </div>
     </div>
-    <div class="topbar-right">
-      <span><span class="online-dot" id="conn-dot"></span><span id="conn-txt" style="font-size:.75rem;color:var(--text2);"></span></span>
-      <span class="tb-info" id="tb-name"></span>
-      <span class="badge" id="tb-role"></span>
-      <span class="badge badge-store" id="tb-store" style="display:none;"></span>
-      <button class="btn-logout" onclick="doLogout()">ออกจากระบบ</button>
+    <!-- Mobile sub-row: badges + logout aligned right -->
+    <div class="tb-subrow">
+      <span><span class="online-dot" id="conn-dot-m"></span><span id="conn-txt-m" style="font-size:.73rem;color:var(--text2);"></span></span>
+      <span class="badge" id="tb-role-m"></span>
+      <span class="badge badge-store" id="tb-store-m" style="display:none;"></span>
+      <button class="btn-logout" onclick="doLogout()" style="padding:5px 12px;font-size:.78rem;">ออกจากระบบ</button>
     </div>
   </div>
 
@@ -471,7 +503,7 @@ const recRef  = db.ref('name_records');   // path in Realtime DB
    ACCOUNTS (200 stores + admin)
    ══════════════════════════════════════════════════════ */
 const STORES   = Array.from({length:200}, (_,i) => `Store${String(i+1).padStart(3,'0')}`);
-const ACCOUNTS = { Inventory:{ pass:'inv123', role:'admin', display:'ผู้ดูแลระบบ', store:null } };
+const ACCOUNTS = { Admin:{ pass:'inv12345', role:'admin', display:'ผู้ดูแลระบบ', store:null } };
 STORES.forEach(s => { ACCOUNTS[s] = { pass:s.toLowerCase(), role:'user', display:`ผู้ใช้ ${s}`, store:s }; });
 
 /* ══ APP STATE ══ */
@@ -503,8 +535,12 @@ function isoThai(iso){
    ══════════════════════════════════════════════════════ */
 db.ref('.info/connected').on('value', snap => {
   const online = snap.val() === true;
-  document.getElementById('conn-dot').className = 'online-dot ' + (online ? 'on' : 'off');
-  document.getElementById('conn-txt').textContent = online ? 'ออนไลน์' : 'ออฟไลน์';
+  const cls = 'online-dot ' + (online ? 'on' : 'off');
+  const txt = online ? 'ออนไลน์' : 'ออฟไลน์';
+  document.getElementById('conn-dot').className   = cls;
+  document.getElementById('conn-txt').textContent  = txt;
+  document.getElementById('conn-dot-m').className  = cls;
+  document.getElementById('conn-txt-m').textContent = txt;
 });
 
 /* ══════════════════════════════════════════════════════
@@ -564,7 +600,7 @@ function doLogin(){
   document.getElementById('login-page').classList.remove('show');
   document.getElementById('app-page').classList.add('show');
 
-  // Topbar
+  // Topbar desktop
   document.getElementById('tb-name').textContent = acc.display;
   const rb = document.getElementById('tb-role');
   rb.textContent = acc.role==='admin' ? '👑 Admin' : '👤 User';
@@ -574,6 +610,16 @@ function doLogin(){
     sb.textContent = '🏪 '+acc.store; sb.style.display='';
   } else {
     document.getElementById('tb-store').style.display='none';
+  }
+  // Topbar mobile subrow
+  const rbm = document.getElementById('tb-role-m');
+  rbm.textContent = acc.role==='admin' ? '👑 Admin' : '👤 User';
+  rbm.className   = 'badge ' + (acc.role==='admin' ? 'badge-admin' : 'badge-user');
+  if(acc.role==='user'){
+    const sbm = document.getElementById('tb-store-m');
+    sbm.textContent = '🏪 '+acc.store; sbm.style.display='';
+  } else {
+    document.getElementById('tb-store-m').style.display='none';
   }
 
   const isAdmin = acc.role==='admin';
