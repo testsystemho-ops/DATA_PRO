@@ -572,7 +572,11 @@ tbody tr:hover{background:#F8F9FF;}
       <div class="fg4">
         <div class="fld">
           <label>สาขา <span style="color:var(--secondary)">*</span></label>
-          <select id="fstore"></select>
+          <select id="fstore" onchange="startHTListen(this.value)"></select>
+        </div>
+        <div class="fld">
+          <label>User <span style="color:var(--secondary)">*</span></label>
+          <select id="fuser"><option value="">-- เลือก --</option></select>
         </div>
         <div class="fld">
           <label>วันที่บันทึก</label>
@@ -601,11 +605,11 @@ tbody tr:hover{background:#F8F9FF;}
         </div>
         <div class="fld">
           <label>วันที่เริ่มต้น</label>
-          <input type="date" id="exp-from" onchange="updatePrev()"/>
+          <input type="date" id="exp-from" onchange="updatePrev();renderTbl()"/>
         </div>
         <div class="fld">
           <label>วันที่สิ้นสุด</label>
-          <input type="date" id="exp-to" onchange="updatePrev()"/>
+          <input type="date" id="exp-to" onchange="updatePrev();renderTbl()"/>
         </div>
         <div class="fld">
           <label style="visibility:hidden;">x</label>
@@ -631,10 +635,10 @@ tbody tr:hover{background:#F8F9FF;}
         <table>
           <thead><tr>
             <th>#</th><th>คำนำหน้า</th><th>ชื่อ</th><th>นามสกุล</th>
-            <th>สาขา</th><th>วันที่บันทึก</th><th>บันทึกโดย</th>
+            <th>User</th><th>สาขา</th><th>วันที่บันทึก</th><th>บันทึกโดย</th>
             <th id="act-col" style="display:none;">จัดการ</th>
           </tr></thead>
-          <tbody id="tbl-body"><tr><td colspan="8" class="no-data">⏳ กำลังโหลดข้อมูล...</td></tr></tbody>
+          <tbody id="tbl-body"><tr><td colspan="9" class="no-data">⏳ กำลังโหลดข้อมูล...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -654,6 +658,7 @@ tbody tr:hover{background:#F8F9FF;}
     </div>
     <div class="fld"><label>ชื่อ</label><input type="text" id="mf" maxlength="100"/></div>
     <div class="fld"><label>นามสกุล</label><input type="text" id="ml" maxlength="100"/></div>
+    <div class="fld"><label>User</label><select id="muser"></select></div>
     <div class="fld"><label>สาขา</label><select id="ms"></select></div>
     <div class="mo-btns">
       <button class="btn btn-ghost" onclick="closeModal()">ยกเลิก</button>
@@ -692,6 +697,10 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db      = firebase.database();
 const recRef  = db.ref('name_records');   // path in Realtime DB
+const htRef   = db.ref('ht_claims');      // path: ht_claims/{iso-date}/{HTxx} = recordKey
+
+/* ══ HT USERS (HT1 - HT120) ══ */
+const HT_USERS = Array.from({length:120}, (_,i) => `HT${i+1}`);
 
 /* ══════════════════════════════════════════════════════
    ACCOUNTS (200 stores + admin)
@@ -702,9 +711,12 @@ STORES.forEach(s => { ACCOUNTS[s] = { pass:s.toLowerCase(), role:'user', display
 
 /* ══ APP STATE ══ */
 let records     = {};   // key → record object (from Firebase)
+let htClaims    = {};   // HTxx → recordKey (today's claims, live)
 let currentUser = null;
 let editKey     = null;
 let unsubscribe = null; // Firebase listener cleanup
+let htUnsub     = null; // HT claims listener cleanup
+let htStore     = null; // store whose HT claims we are currently listening to
 
 /* ══════════════════════════════════════════════════════
    DATE HELPERS
@@ -754,6 +766,8 @@ function buildStoreDropdowns(isAdmin, userStore){
     '<option value="">— ทุกสาขา —</option>' + STORES.map(s=>`<option>${s}</option>`).join('');
   document.getElementById('ms').innerHTML =
     STORES.map(s=>`<option>${s}</option>`).join('');
+  document.getElementById('muser').innerHTML =
+    '<option value="">-- ไม่ระบุ --</option>' + HT_USERS.map(h=>`<option>${h}</option>`).join('');
 }
 
 /* ══════════════════════════════════════════════════════
@@ -773,6 +787,63 @@ function startListen(){
 
 function stopListen(){
   if(unsubscribe){ recRef.off('value', unsubscribe); unsubscribe=null; }
+}
+
+/* ══════════════════════════════════════════════════════
+   HT CLAIMS LISTENER — real-time availability (today only)
+   Path: ht_claims/{todayISO}/{store}/{HTxx} = recordKey
+   Each store has its OWN independent HT1–HT120 pool.
+   ══════════════════════════════════════════════════════ */
+function currentFormStore(){
+  // For users: their fixed store. For admin: whatever is picked in #fstore.
+  if(currentUser?.role === 'admin') return document.getElementById('fstore')?.value || '';
+  return currentUser?.store || '';
+}
+
+function startHTListen(store){
+  // Detach previous listener if the store changed
+  if(htUnsub){ htUnsub.ref.off('value', htUnsub.cb); htUnsub = null; }
+  htClaims = {};
+  htStore  = store || '';
+  buildHTDropdown();                           // show full list immediately
+  if(!htStore){ return; }                      // no store chosen yet (admin)
+  const dayRef = htRef.child(todayISO()).child(htStore);
+  const cb = dayRef.on('value', snap => {
+    htClaims = snap.val() || {};
+    buildHTDropdown();
+  }, err => {
+    // If the read is blocked/fails, keep the full list usable
+    console.warn('HT listen error:', err && err.message);
+    htClaims = {};
+    buildHTDropdown();
+  });
+  htUnsub = { ref: dayRef, cb };
+}
+function stopHTListen(){
+  if(htUnsub){ htUnsub.ref.off('value', htUnsub.cb); htUnsub=null; }
+  htClaims = {};
+  htStore  = null;
+}
+
+/* Build the form's User (HT) dropdown — hide HTs already claimed today
+   FOR THE CURRENTLY SELECTED STORE ONLY. */
+function buildHTDropdown(){
+  const sel = document.getElementById('fuser');
+  if(!sel) return;
+  const cur = sel.value;
+  // Admin must pick a store before choosing an HT
+  if(currentUser?.role === 'admin' && !currentFormStore()){
+    sel.innerHTML = '<option value="">-- เลือกสาขาก่อน --</option>';
+    sel.value = '';
+    return;
+  }
+  const available = HT_USERS.filter(ht => !htClaims[ht]);
+  // Keep current selection visible even while typing/saving
+  let opts = '<option value="">-- เลือก --</option>';
+  opts += available.map(ht => `<option>${ht}</option>`).join('');
+  if(cur && !available.includes(cur)) opts += `<option value="${cur}">${cur}</option>`;
+  sel.innerHTML = opts;
+  sel.value = available.includes(cur) || cur==='' ? cur : (htClaims[cur] ? '' : cur);
 }
 
 /* ══════════════════════════════════════════════════════
@@ -832,10 +903,12 @@ function doLogin(){
 
   // Start listening to Firebase
   startListen();
+  startHTListen(acc.role==='admin' ? '' : acc.store);
 }
 
 function doLogout(){
   stopListen();
+  stopHTListen();
   currentUser = null;
   records     = {};
   document.getElementById('app-page').classList.remove('show');
@@ -863,23 +936,60 @@ function saveRec(){
   const first  = document.getElementById('ff').value.trim();
   const last   = document.getElementById('fl').value.trim();
   const store  = document.getElementById('fstore').value;
+  const htUser = document.getElementById('fuser').value;
   if(!prefix){ showToast('กรุณาเลือกคำนำหน้า','error'); return; }
   if(!first) { showToast('กรุณากรอกชื่อ','error'); return; }
   if(!last)  { showToast('กรุณากรอกนามสกุล','error'); return; }
   if(!store) { showToast('กรุณาเลือกสาขา','error'); return; }
+  if(!htUser){ showToast('กรุณาเลือก User','error'); return; }
+
+  // Quick client-side check (real protection is the transaction below)
+  if(htClaims[htUser]){
+    showToast(`⚠️ User ${htUser} ถูกเลือกไปแล้วในวันนี้ กรุณาเลือกใหม่`,'error');
+    buildHTDropdown();
+    return;
+  }
 
   const btn = document.getElementById('btn-save');
   btn.disabled = true;
 
-  const newRec = { prefix, first, last, store, date:todayStr(), iso:todayISO(), by:currentUser.display, ts:Date.now() };
+  const iso     = todayISO();
+  const recKey  = recRef.push().key;                       // pre-generate record key
+  const claimRef = htRef.child(iso).child(store).child(htUser); // ht_claims/{date}/{store}/{HTxx}
 
-  recRef.push(newRec)
-    .then(() => {
-      showToast(`✅ บันทึก "${prefix}${first} ${last}" (${store}) เรียบร้อย`, 'success');
+  // Transaction: only the FIRST writer wins the HT for today
+  claimRef.transaction(curr => {
+    if(curr === null) return recKey;  // free → claim it
+    return;                           // already taken → abort
+  }).then(res => {
+    if(!res.committed || res.snapshot.val() !== recKey){
+      // Someone else grabbed this HT first
+      btn.disabled = false;
+      showToast(`⚠️ User ${htUser} เพิ่งถูกเลือกโดยคนอื่น กรุณาเลือกใหม่`,'error');
+      buildHTDropdown();
+      return;
+    }
+    // Won the claim → write the record under the reserved key
+    const newRec = { prefix, first, last, store, htUser, htDate:iso,
+                     date:todayStr(), iso, by:currentUser.display,
+                     byUser:currentUser.username, ts:Date.now() };
+    return recRef.child(recKey).set(newRec).then(() => {
+      showToast(`✅ บันทึก "${prefix}${first} ${last}" (${store} · ${htUser}) เรียบร้อย`, 'success');
       clearForm();
-    })
-    .catch(err => { showToast('❌ บันทึกไม่สำเร็จ: '+err.message, 'error'); })
-    .finally(() => { btn.disabled = false; });
+    }).catch(err => {
+      // Record write failed → release the claim so HT is reusable
+      claimRef.remove();
+      const msg = /permission/i.test(err.message)
+        ? '❌ บันทึกไม่สำเร็จ: สิทธิ์ Firebase ถูกปฏิเสธ — ต้องแก้ Security Rules'
+        : '❌ บันทึกไม่สำเร็จ: '+err.message;
+      showToast(msg, 'error');
+    });
+  }).catch(err => {
+    const msg = /permission/i.test(err.message)
+      ? '❌ บันทึกไม่สำเร็จ: สิทธิ์ Firebase ถูกปฏิเสธ — ต้องแก้ Security Rules'
+      : '❌ บันทึกไม่สำเร็จ: '+err.message;
+    showToast(msg, 'error');
+  }).finally(() => { btn.disabled = false; });
 }
 
 function clearForm(){
@@ -888,6 +998,8 @@ function clearForm(){
   document.getElementById('fl').value = '';
   document.getElementById('fdate').value = todayStr();
   if(currentUser?.role==='admin') document.getElementById('fstore').value = '';
+  buildHTDropdown();
+  document.getElementById('fuser').value = '';
   document.getElementById('fp').focus();
 }
 
@@ -898,12 +1010,26 @@ function renderTbl(){
   const q           = (document.getElementById('srch').value||'').toLowerCase();
   const isAdmin     = currentUser?.role === 'admin';
   const filterStore = isAdmin ? (document.getElementById('exp-store')?.value||'') : '';
+  // Admin: also respect the date range from the Export filter
+  const fromDate    = isAdmin ? (document.getElementById('exp-from')?.value||'') : '';
+  const toDate      = isAdmin ? (document.getElementById('exp-to')?.value||'')   : '';
   const base        = visibleArr();
-  // Sort newest first
-  base.sort((a,b) => (b.ts||0)-(a.ts||0));
+  // Sort by HT number ascending (HT1, HT2, ... HT120). Records without HT go last;
+  // ties / no-HT fall back to newest first.
+  const htNum = r => {
+    const m = /^HT(\d+)$/.exec(r.htUser||'');
+    return m ? parseInt(m[1],10) : Infinity;
+  };
+  base.sort((a,b) => {
+    const na = htNum(a), nb = htNum(b);
+    if(na !== nb) return na - nb;
+    return (b.ts||0)-(a.ts||0);
+  });
 
   const filtered = base.filter(r => {
     if(filterStore && r.store !== filterStore) return false;
+    if(fromDate && (r.iso||'') < fromDate) return false;
+    if(toDate   && (r.iso||'') > toDate)   return false;
     return (
       (r.first||'').toLowerCase().includes(q) ||
       (r.last||'').toLowerCase().includes(q)  ||
@@ -916,7 +1042,7 @@ function renderTbl(){
   const tbody = document.getElementById('tbl-body');
 
   if(!filtered.length){
-    tbody.innerHTML = `<tr><td colspan="8" class="no-data">ไม่พบข้อมูล</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="no-data">ไม่พบข้อมูล</td></tr>`;
     return;
   }
 
@@ -926,6 +1052,7 @@ function renderTbl(){
       <td><span class="pill pill-${r.prefix}">${r.prefix}</span></td>
       <td style="font-weight:600;">${r.first}</td>
       <td>${r.last}</td>
+      <td>${r.htUser ? `<span class="pill pill-store">${r.htUser}</span>` : '<span style="color:var(--text3)">—</span>'}</td>
       <td><span class="pill pill-store">${r.store||'—'}</span></td>
       <td style="color:var(--text2);font-size:.8rem;">${r.date}</td>
       <td style="color:var(--text2);font-size:.8rem;">${r.by}</td>
@@ -952,8 +1079,13 @@ function closeConfirm(){ document.getElementById('confirm-overlay').classList.re
 
 function doDelete(key){
   closeConfirm();
+  const r = records[key] || {};
   recRef.child(key).remove()
-    .then(()  => showToast('ลบรายการเรียบร้อยแล้ว','info'))
+    .then(()  => {
+      // Release the HT claim so it becomes available again (per-store path)
+      if(r.htUser){ htRef.child(r.htDate || r.iso).child(r.store).child(r.htUser).remove(); }
+      showToast('ลบรายการเรียบร้อยแล้ว','info');
+    })
     .catch(e  => showToast('❌ ลบไม่สำเร็จ: '+e.message,'error'));
 }
 
@@ -967,6 +1099,7 @@ function openEdit(key){
   document.getElementById('mf').value = r.first;
   document.getElementById('ml').value = r.last;
   document.getElementById('ms').value = r.store||'';
+  document.getElementById('muser').value = r.htUser||'';
   document.getElementById('modal').classList.add('open');
 }
 function closeModal(){ document.getElementById('modal').classList.remove('open'); editKey=null; }
@@ -975,11 +1108,52 @@ function saveEdit(){
   const first  = document.getElementById('mf').value.trim();
   const last   = document.getElementById('ml').value.trim();
   const store  = document.getElementById('ms').value;
+  const htUser = document.getElementById('muser').value;
   if(!first||!last){ showToast('กรุณากรอกข้อมูลให้ครบ','error'); return; }
 
-  recRef.child(editKey).update({ prefix, first, last, store })
-    .then(()  => { showToast('✅ แก้ไขข้อมูลเรียบร้อยแล้ว','success'); closeModal(); })
-    .catch(e  => showToast('❌ แก้ไขไม่สำเร็จ: '+e.message,'error'));
+  const r        = records[editKey] || {};
+  const oldHT    = r.htUser || '';
+  const oldStore = r.store  || '';
+  const htDate   = r.htDate || r.iso;   // the day this record's HT belongs to
+
+  // Helper: remove the old claim (per-store path) if it existed
+  const releaseOld = () => {
+    if(oldHT && oldStore) htRef.child(htDate).child(oldStore).child(oldHT).remove();
+  };
+
+  // No change to HT *and* no change to store → simple update, claim untouched
+  if(htUser === oldHT && store === oldStore){
+    recRef.child(editKey).update({ prefix, first, last, store })
+      .then(()  => { showToast('✅ แก้ไขข้อมูลเรียบร้อยแล้ว','success'); closeModal(); })
+      .catch(e  => showToast('❌ แก้ไขไม่สำเร็จ: '+e.message,'error'));
+    return;
+  }
+
+  // Write record + release old claim
+  const finishUpdate = (committedHT) => {
+    recRef.child(editKey).update({ prefix, first, last, store, htUser:committedHT, htDate })
+      .then(() => {
+        releaseOld();   // release old (handles HT change or store move)
+        showToast('✅ แก้ไขข้อมูลเรียบร้อยแล้ว','success');
+        closeModal();
+      })
+      .catch(e => showToast('❌ แก้ไขไม่สำเร็จ: '+e.message,'error'));
+  };
+
+  if(!htUser){ finishUpdate(''); return; }   // cleared HT
+  if(!store) { showToast('กรุณาเลือกสาขา','error'); return; }
+
+  // Claim the HT in the (possibly new) store. Skip claiming only if both HT and store unchanged (handled above).
+  const claimRef = htRef.child(htDate).child(store).child(htUser);
+  claimRef.transaction(curr => (curr===null || curr===editKey ? editKey : undefined))
+    .then(res => {
+      if(!res.committed || res.snapshot.val() !== editKey){
+        showToast(`⚠️ User ${htUser} ถูกใช้ไปแล้วในสาขา ${store} วันนั้น`,'error');
+        return;
+      }
+      finishUpdate(htUser);
+    })
+    .catch(e => showToast('❌ แก้ไขไม่สำเร็จ: '+e.message,'error'));
 }
 document.getElementById('modal').addEventListener('click', e => {
   if(e.target===document.getElementById('modal')) closeModal();
@@ -1008,7 +1182,12 @@ function getExpData(){
     if(from  && r.iso<from)      return false;
     if(to    && r.iso>to)        return false;
     return true;
-  }).sort((a,b)=>(a.iso||'').localeCompare(b.iso||'') || (a.ts||0)-(b.ts||0));
+  }).sort((a,b)=>{
+    const ha = (m=>m?parseInt(m[1],10):Infinity)(/^HT(\d+)$/.exec(a.htUser||''));
+    const hb = (m=>m?parseInt(m[1],10):Infinity)(/^HT(\d+)$/.exec(b.htUser||''));
+    if(ha !== hb) return ha - hb;
+    return (a.iso||'').localeCompare(b.iso||'') || (a.ts||0)-(b.ts||0);
+  });
 }
 
 function updatePrev(){
@@ -1035,13 +1214,13 @@ function exportExcel(){
     ['ระบบบันทึกชื่อ-นามสกุล'],
     [store ? `สาขา: ${store}` : 'ทุกสาขา', '', from||to ? `ช่วงวันที่: ${isoThai(from)||'—'} ถึง ${isoThai(to)||'—'}` : ''],
     [],
-    ['ลำดับ','สาขา','คำนำหน้า','ชื่อ','นามสกุล','ชื่อ-นามสกุลเต็ม','วันที่บันทึก','บันทึกโดย'],
-    ...data.map((r,i) => [i+1, r.store||'', r.prefix, r.first, r.last, `${r.prefix}${r.first} ${r.last}`, r.date, r.by])
+    ['ลำดับ','สาขา','User','คำนำหน้า','ชื่อ','นามสกุล','ชื่อ-นามสกุลเต็ม','วันที่บันทึก','บันทึกโดย'],
+    ...data.map((r,i) => [i+1, r.store||'', r.htUser||'', r.prefix, r.first, r.last, `${r.prefix}${r.first} ${r.last}`, r.date, r.by])
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols'] = [{wch:7},{wch:12},{wch:11},{wch:20},{wch:22},{wch:30},{wch:20},{wch:18}];
-  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:2}},{s:{r:1,c:2},e:{r:1,c:7}}];
+  ws['!cols'] = [{wch:7},{wch:12},{wch:10},{wch:11},{wch:20},{wch:22},{wch:30},{wch:20},{wch:18}];
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:2}},{s:{r:1,c:2},e:{r:1,c:8}}];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'รายชื่อ');
